@@ -1,0 +1,67 @@
+package com.acfc.automation.reporting;
+
+import com.acfc.automation.config.ConfigManager;
+import com.acfc.automation.utils.StatusCodeTracker;
+import org.testng.ITestContext;
+import org.testng.ITestListener;
+import org.testng.ITestResult;
+
+public class ExecutionSummaryListener implements ITestListener {
+
+    private static int passed = 0;
+    private static int failed = 0;
+    private static int skipped = 0;
+    private static long startTime;
+
+    @Override
+    public void onStart(ITestContext context) {
+        startTime = System.currentTimeMillis();
+        passed = 0;
+        failed = 0;
+        skipped = 0;
+    }
+
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        passed++;
+    }
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        failed++;
+    }
+
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        skipped++;
+    }
+
+    @Override
+    public void onFinish(ITestContext context) {
+        int total = passed + failed + skipped;
+        long durationSec = (System.currentTimeMillis() - startTime) / 1000;
+
+        System.out.println();
+        System.out.println("==================== TEST SUMMARY ====================");
+        System.out.println("Project      : " + ConfigManager.getProject());
+        System.out.println("Environment  : " + ConfigManager.getEnv());
+        System.out.println("Type         : " + ConfigManager.getType());
+
+        String tcId = ConfigManager.getTcId();
+        System.out.println("TC ID Filter : " + (tcId == null || tcId.isBlank() ? "ALL" : tcId));
+
+        System.out.println();
+        System.out.println("Total Tests  : " + total);
+        System.out.println("Passed       : " + passed);
+        System.out.println("Failed       : " + failed);
+        System.out.println("Skipped      : " + skipped);
+
+        System.out.println();
+        StatusCodeTracker.printSummary();
+
+        System.out.println();
+        System.out.println("Execution Time : " + durationSec + " sec");
+        System.out.println("======================================================");
+        System.out.println();
+    }
+}
