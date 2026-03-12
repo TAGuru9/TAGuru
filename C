@@ -1,67 +1,57 @@
-package com.acfc.automation.reporting;
+package com.acfc.automation.utils;
 
-import com.acfc.automation.config.ConfigManager;
-import com.acfc.automation.utils.StatusCodeTracker;
-import org.testng.ITestContext;
-import org.testng.ITestListener;
-import org.testng.ITestResult;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.TreeMap;
 
-public class ExecutionSummaryListener implements ITestListener {
+public class StatusCodeTracker {
 
-    private static int passed = 0;
-    private static int failed = 0;
-    private static int skipped = 0;
-    private static long startTime;
+    private static final String REPORT_FILE = "build/reports/status-tracker/status-codes.csv";
+    private static final Map<Integer, Integer> statusCounts = new TreeMap<>();
 
-    @Override
-    public void onStart(ITestContext context) {
-        startTime = System.currentTimeMillis();
-        passed = 0;
-        failed = 0;
-        skipped = 0;
+    public static synchronized void init() {
+        try {
+            Path path = Path.of("build/reports/status-tracker");
+            Files.createDirectories(path);
+
+            File file = new File(REPORT_FILE);
+            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
+                pw.println("TC_ID,TEST_NAME,TYPE,STATUS_CODE,RESULT");
+            }
+
+            statusCounts.clear();
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to initialize status tracker", e);
+        }
     }
 
-    @Override
-    public void onTestSuccess(ITestResult result) {
-        passed++;
+    public static synchronized void log(String tcId,
+                                        String testName,
+                                        String type,
+                                        int statusCode,
+                                        String result) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(REPORT_FILE, true))) {
+            pw.printf("%s,%s,%s,%s,%s%n", tcId, testName, type, statusCode, result);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to write status tracker", e);
+        }
+
+        statusCounts.put(statusCode, statusCounts.getOrDefault(statusCode, 0) + 1);
     }
 
-    @Override
-    public void onTestFailure(ITestResult result) {
-        failed++;
-    }
+    public static synchronized void printSummary() {
+        System.out.println("Status Codes");
+        if (statusCounts.isEmpty()) {
+            System.out.println("No status codes recorded");
+            return;
+        }
 
-    @Override
-    public void onTestSkipped(ITestResult result) {
-        skipped++;
-    }
-
-    @Override
-    public void onFinish(ITestContext context) {
-        int total = passed + failed + skipped;
-        long durationSec = (System.currentTimeMillis() - startTime) / 1000;
-
-        System.out.println();
-        System.out.println("==================== TEST SUMMARY ====================");
-        System.out.println("Project      : " + ConfigManager.getProject());
-        System.out.println("Environment  : " + ConfigManager.getEnv());
-        System.out.println("Type         : " + ConfigManager.getType());
-
-        String tcId = ConfigManager.getTcId();
-        System.out.println("TC ID Filter : " + (tcId == null || tcId.isBlank() ? "ALL" : tcId));
-
-        System.out.println();
-        System.out.println("Total Tests  : " + total);
-        System.out.println("Passed       : " + passed);
-        System.out.println("Failed       : " + failed);
-        System.out.println("Skipped      : " + skipped);
-
-        System.out.println();
-        StatusCodeTracker.printSummary();
-
-        System.out.println();
-        System.out.println("Execution Time : " + durationSec + " sec");
-        System.out.println("======================================================");
-        System.out.println();
+        for (Map.Entry<Integer, Integer> entry : statusCounts.entrySet()) {
+            System.out.println(entry.getKey() + " : " + entry.getValue());
+        }
     }
 }
