@@ -1,57 +1,70 @@
-package com.acfc.automation.utils;
+@Test(dataProvider = "apiData", retryAnalyzer = com.acfc.automation.listeners.RetryAnalyzer.class)
+public void runApiScenario(TestCaseData data) {
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
-import java.util.TreeMap;
+    ExtentTest test = ExtentManager.getInstance()
+            .createTest(data.getTcId() + " | " + data.getTestName());
+    ExtentTestListener.setTest(test);
+    test.assignCategory(data.getType());
 
-public class StatusCodeTracker {
+    ApiConfigLoader loader = new ApiConfigLoader();
+    ApiRequestConfig config = loader.getRequestConfig(data.getRequestName());
 
-    private static final String REPORT_FILE = "build/reports/status-tracker/status-codes.csv";
-    private static final Map<Integer, Integer> statusCounts = new TreeMap<>();
+    String requestBody = null;
+    if (data.getBodyFile() != null && !data.getBodyFile().isBlank()) {
+        requestBody = FileUtil.readClasspathFile(data.getBodyFile());
+    } else if (config.getRequestFile() != null && !config.getRequestFile().isBlank()) {
+        String template = FileUtil.readClasspathFile(config.getRequestFile());
+        requestBody = TemplateUtil.populateTemplate(template, data);
+    }
 
-    public static synchronized void init() {
-        try {
-            Path path = Path.of("build/reports/status-tracker");
-            Files.createDirectories(path);
+    Response response = null;
+    int actualStatus = -1;
+    String responseBody = "";
 
-            File file = new File(REPORT_FILE);
-            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-                pw.println("TC_ID,TEST_NAME,TYPE,STATUS_CODE,RESULT");
+    try {
+        response = SoapRequestUtil.executeRequest(
+                config.getUrl(),
+                config.getMethod(),
+                config.getContentType(),
+                requestBody,
+                config.getHeaders()
+        );
+
+        actualStatus = response.getStatusCode();
+        responseBody = response.asPrettyString();
+
+        test.info("TC ID: " + data.getTcId());
+        test.info("Test Name: " + data.getTestName());
+        test.info("Request Name: " + data.getRequestName());
+
+        ReportLogger.logRequestResponse(test, requestBody, responseBody, actualStatus);
+
+        if (data.getExpectedContains() != null) {
+            for (String expected : data.getExpectedContains()) {
+                Assert.assertTrue(responseBody.contains(expected),
+                        "Expected text not found in response: " + expected);
             }
-
-            statusCounts.clear();
-        } catch (Exception e) {
-            throw new RuntimeException("Unable to initialize status tracker", e);
-        }
-    }
-
-    public static synchronized void log(String tcId,
-                                        String testName,
-                                        String type,
-                                        int statusCode,
-                                        String result) {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(REPORT_FILE, true))) {
-            pw.printf("%s,%s,%s,%s,%s%n", tcId, testName, type, statusCode, result);
-        } catch (Exception e) {
-            throw new RuntimeException("Unable to write status tracker", e);
         }
 
-        statusCounts.put(statusCode, statusCounts.getOrDefault(statusCode, 0) + 1);
-    }
+        Assert.assertEquals(actualStatus, data.getExpectedStatus(),
+                "Status code mismatch for TC: " + data.getTcId());
 
-    public static synchronized void printSummary() {
-        System.out.println("Status Codes");
-        if (statusCounts.isEmpty()) {
-            System.out.println("No status codes recorded");
-            return;
-        }
+        StatusCodeTracker.log(
+                data.getTcId(),
+                data.getTestName(),
+                data.getType(),
+                actualStatus,
+                "PASS"
+        );
 
-        for (Map.Entry<Integer, Integer> entry : statusCounts.entrySet()) {
-            System.out.println(entry.getKey() + " : " + entry.getValue());
-        }
+    } catch (AssertionError | Exception e) {
+        StatusCodeTracker.log(
+                data.getTcId(),
+                data.getTestName(),
+                data.getType(),
+                actualStatus,
+                "FAIL"
+        );
+        throw e;
     }
 }
