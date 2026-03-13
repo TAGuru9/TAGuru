@@ -1,3 +1,25 @@
+String responseBody = response.asPrettyString();
+int actualStatus = response.getStatusCode();
+
+if (data.getExpectedXmlTags() != null) {
+    for (String tag : data.getExpectedXmlTags()) {
+
+        String value = XmlValidatorUtil.getValue(
+                responseBody,
+                "//*[local-name()='" + tag + "']"
+        );
+
+        ExtentTestListener.getTest().info(
+                "Validating XML tag: " + tag + " -> " + value
+        );
+
+        Assert.assertTrue(
+                value != null && !value.isEmpty(),
+                "Expected XML tag missing or empty: " + tag
+        );
+    }
+}
+
 if (data.getMemberClassPlanCategoryCode() != null &&
         !data.getMemberClassPlanCategoryCode().isBlank()) {
 
