@@ -1,53 +1,15 @@
-package com.acfc.automation.reporting;
+if (data.getExpectedContains() != null) {
 
-import com.aventstack.extentreports.ExtentReports;
-import com.aventstack.extentreports.ExtentTest;
-import org.testng.ITestContext;
-import org.testng.ITestListener;
-import org.testng.ITestResult;
+    for (String tag : data.getExpectedContains()) {
 
-public class ExtentTestListener implements ITestListener {
+        boolean exists = responseBody.contains(tag);
 
-    private static final ExtentReports extent = ExtentManager.getInstance();
-    private static final ThreadLocal<ExtentTest> testThread = new ThreadLocal<>();
+        ExtentTestListener.getTest().info(
+                "Validating tag: " + tag + " -> " + exists);
 
-    public static ExtentTest getTest() {
-        return testThread.get();
-    }
-
-    public static void setTest(ExtentTest test) {
-        testThread.set(test);
-    }
-
-    @Override
-    public void onTestStart(ITestResult result) {
-        // Intentionally left blank.
-        // We create the Extent test manually in DynamicApiTest.
-    }
-
-    @Override
-    public void onTestSuccess(ITestResult result) {
-        if (testThread.get() != null) {
-            testThread.get().pass("Test passed");
-        }
-    }
-
-    @Override
-    public void onTestFailure(ITestResult result) {
-        if (testThread.get() != null) {
-            testThread.get().fail(result.getThrowable());
-        }
-    }
-
-    @Override
-    public void onTestSkipped(ITestResult result) {
-        if (testThread.get() != null) {
-            testThread.get().skip("Test skipped");
-        }
-    }
-
-    @Override
-    public void onFinish(ITestContext context) {
-        extent.flush();
+        Assert.assertTrue(
+                exists,
+                "Expected tag not found in response: " + tag
+        );
     }
 }
