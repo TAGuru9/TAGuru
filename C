@@ -1,70 +1,55 @@
-@Test(dataProvider = "apiData", retryAnalyzer = com.acfc.automation.listeners.RetryAnalyzer.class)
-public void runApiScenario(TestCaseData data) {
+@Override
+public void onFinish(ITestContext context) {
+    int total = passed + failed + skipped;
+    long durationSec = (System.currentTimeMillis() - startTime) / 1000;
 
-    ExtentTest test = ExtentManager.getInstance()
-            .createTest(data.getTcId() + " | " + data.getTestName());
-    ExtentTestListener.setTest(test);
-    test.assignCategory(data.getType());
+    String project = ConfigManager.getProject();
+    String env = ConfigManager.getEnv();
+    String type = ConfigManager.getType();
+    String tcId = ConfigManager.getTcId();
 
-    ApiConfigLoader loader = new ApiConfigLoader();
-    ApiRequestConfig config = loader.getRequestConfig(data.getRequestName());
+    java.nio.file.Path gradleReport = java.nio.file.Path.of("build", "reports", "tests", "test", "index.html")
+            .toAbsolutePath()
+            .normalize();
 
-    String requestBody = null;
-    if (data.getBodyFile() != null && !data.getBodyFile().isBlank()) {
-        requestBody = FileUtil.readClasspathFile(data.getBodyFile());
-    } else if (config.getRequestFile() != null && !config.getRequestFile().isBlank()) {
-        String template = FileUtil.readClasspathFile(config.getRequestFile());
-        requestBody = TemplateUtil.populateTemplate(template, data);
-    }
+    java.nio.file.Path extentReport = java.nio.file.Path.of(
+            "build", "reports", "extent",
+            project + "-" + env + "-" + type + "-extent-report.html"
+    ).toAbsolutePath().normalize();
 
-    Response response = null;
-    int actualStatus = -1;
-    String responseBody = "";
+    java.nio.file.Path statusTracker = java.nio.file.Path.of(
+            "build", "reports", "status-tracker", "status-codes.csv"
+    ).toAbsolutePath().normalize();
 
-    try {
-        response = SoapRequestUtil.executeRequest(
-                config.getUrl(),
-                config.getMethod(),
-                config.getContentType(),
-                requestBody,
-                config.getHeaders()
-        );
+    System.out.println();
+    System.out.println("==================== TEST SUMMARY ====================");
+    System.out.println("Project      : " + project);
+    System.out.println("Environment  : " + env);
+    System.out.println("Type         : " + type);
+    System.out.println("TC ID Filter : " + (tcId == null || tcId.isBlank() ? "ALL" : tcId));
 
-        actualStatus = response.getStatusCode();
-        responseBody = response.asPrettyString();
+    System.out.println();
+    System.out.println("Total Tests  : " + total);
+    System.out.println("Passed       : " + passed);
+    System.out.println("Failed       : " + failed);
+    System.out.println("Skipped      : " + skipped);
 
-        test.info("TC ID: " + data.getTcId());
-        test.info("Test Name: " + data.getTestName());
-        test.info("Request Name: " + data.getRequestName());
+    System.out.println();
+    StatusCodeTracker.printSummary();
 
-        ReportLogger.logRequestResponse(test, requestBody, responseBody, actualStatus);
+    System.out.println();
+    System.out.println("==================== REPORTS =========================");
+    System.out.println("Extent Report Path : " + extentReport);
+    System.out.println("Extent Report URI  : " + extentReport.toUri());
 
-        if (data.getExpectedContains() != null) {
-            for (String expected : data.getExpectedContains()) {
-                Assert.assertTrue(responseBody.contains(expected),
-                        "Expected text not found in response: " + expected);
-            }
-        }
+    System.out.println("Gradle Report Path : " + gradleReport);
+    System.out.println("Gradle Report URI  : " + gradleReport.toUri());
 
-        Assert.assertEquals(actualStatus, data.getExpectedStatus(),
-                "Status code mismatch for TC: " + data.getTcId());
+    System.out.println("Status Tracker CSV : " + statusTracker);
+    System.out.println("Status Tracker URI : " + statusTracker.toUri());
 
-        StatusCodeTracker.log(
-                data.getTcId(),
-                data.getTestName(),
-                data.getType(),
-                actualStatus,
-                "PASS"
-        );
-
-    } catch (AssertionError | Exception e) {
-        StatusCodeTracker.log(
-                data.getTcId(),
-                data.getTestName(),
-                data.getType(),
-                actualStatus,
-                "FAIL"
-        );
-        throw e;
-    }
+    System.out.println();
+    System.out.println("Execution Time : " + durationSec + " sec");
+    System.out.println("======================================================");
+    System.out.println();
 }
