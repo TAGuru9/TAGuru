@@ -3,32 +3,53 @@ task runAllSmokeParallel {
     description = "Run smoke tests for member and cdr projects in parallel"
 
     doLast {
-        def envName = System.getProperty("env", "qa")
-        def isWindows = System.getProperty("os.name").toLowerCase().contains("win")
-        def gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
+        String envName = System.getProperty("env", "qa")
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win")
+        String gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
 
-        def memberCmd = isWindows
-                ? ["cmd", "/c", gradleCmd, "runApiTests", "-Dproject=member", "-Denv=${envName}", "-Dtype=smoke", "--rerun-tasks", "--info"]
-                : ["bash", "-c", "${gradleCmd} runApiTests -Dproject=member -Denv=${envName} -Dtype=smoke --rerun-tasks --info"]
-
-        def cdrCmd = isWindows
-                ? ["cmd", "/c", gradleCmd, "runApiTests", "-Dproject=cdr", "-Denv=${envName}", "-Dtype=smoke", "--rerun-tasks", "--info"]
-                : ["bash", "-c", "${gradleCmd} runApiTests -Dproject=cdr -Denv=${envName} -Dtype=smoke --rerun-tasks --info"]
-
-        def runProcess = { String label, List cmd ->
-            Thread.start {
-                println "Starting ${label}: ${cmd.join(' ')}"
-                def process = new ProcessBuilder(cmd)
-                        .redirectErrorStream(true)
-                        .inheritIO()
-                        .start()
-                int exitCode = process.waitFor()
-                println "${label} finished with exit code: ${exitCode}"
+        def buildCommand = { String projectName ->
+            if (isWindows) {
+                return [
+                        "cmd".toString(),
+                        "/c".toString(),
+                        gradleCmd.toString(),
+                        "runApiTests".toString(),
+                        "-Dproject=${projectName}".toString(),
+                        "-Denv=${envName}".toString(),
+                        "-Dtype=smoke".toString(),
+                        "--rerun-tasks".toString(),
+                        "--info".toString()
+                ]
+            } else {
+                return [
+                        "bash".toString(),
+                        "-c".toString(),
+                        "${gradleCmd} runApiTests -Dproject=${projectName} -Denv=${envName} -Dtype=smoke --rerun-tasks --info".toString()
+                ]
             }
         }
 
-        def t1 = runProcess("MEMBER", memberCmd)
-        def t2 = runProcess("CDR", cdrCmd)
+        def runProcess = { String label, List<String> cmd ->
+            Thread.start {
+                try {
+                    println "Starting ${label}: ${cmd.join(' ')}"
+
+                    Process process = new ProcessBuilder(cmd)
+                            .redirectErrorStream(true)
+                            .inheritIO()
+                            .start()
+
+                    int exitCode = process.waitFor()
+                    println "${label} finished with exit code: ${exitCode}"
+                } catch (Exception e) {
+                    println "${label} failed: ${e.message}"
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        Thread t1 = runProcess("MEMBER", buildCommand("member"))
+        Thread t2 = runProcess("CDR", buildCommand("cdr"))
 
         t1.join()
         t2.join()
