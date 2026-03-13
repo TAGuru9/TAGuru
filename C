@@ -1,28 +1,18 @@
-public static Response executeRequest(String url,
-                                      String method,
-                                      String contentType,
-                                      String body,
-                                      Map<String, String> headers) {
+private Properties loadProperties() {
+    String envFile = "projects/" + ConfigManager.getProject() + "/config/env.properties";
+    try (InputStream is = Thread.currentThread()
+            .getContextClassLoader()
+            .getResourceAsStream(envFile)) {
 
-    Map<String, String> safeHeaders = headers != null ? headers : new HashMap<>();
+        if (is == null) {
+            throw new RuntimeException("env.properties file not found: " + envFile);
+        }
 
-    io.restassured.specification.RequestSpecification request = RestAssured
-            .given()
-            .relaxedHTTPSValidation()
-            .headers(safeHeaders);
+        Properties props = new Properties();
+        props.load(is);
+        return props;
 
-    if (contentType != null && !contentType.isBlank()) {
-        request.contentType(contentType);
+    } catch (Exception e) {
+        throw new RuntimeException("Unable to load env.properties", e);
     }
-
-    if (body != null && !body.isBlank()) {
-        request.body(body);
-    }
-
-    return request
-            .when()
-            .request(method, url)
-            .then()
-            .extract()
-            .response();
 }
