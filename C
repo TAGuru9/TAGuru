@@ -1,18 +1,24 @@
-private Properties loadProperties() {
-    String envFile = "projects/" + ConfigManager.getProject() + "/config/env.properties";
-    try (InputStream is = Thread.currentThread()
-            .getContextClassLoader()
-            .getResourceAsStream(envFile)) {
+task runAllSmokeParallel {
+    group = "verification"
+    description = "Run smoke tests for member and cdr projects in parallel"
 
-        if (is == null) {
-            throw new RuntimeException("env.properties file not found: " + envFile);
-        }
+    doLast {
 
-        Properties props = new Properties();
-        props.load(is);
-        return props;
+        def envName = System.getProperty("env", "qa")
 
-    } catch (Exception e) {
-        throw new RuntimeException("Unable to load env.properties", e);
+        println "Running smoke tests in environment: ${envName}"
+
+        def memberProcess = ["cmd","/c","gradlew.bat","runApiTests",
+                             "-Dproject=member",
+                             "-Denv=${envName}",
+                             "-Dtype=smoke"].execute()
+
+        def cdrProcess = ["cmd","/c","gradlew.bat","runApiTests",
+                          "-Dproject=cdr",
+                          "-Denv=${envName}",
+                          "-Dtype=smoke"].execute()
+
+        memberProcess.waitFor()
+        cdrProcess.waitFor()
     }
 }
