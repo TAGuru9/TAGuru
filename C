@@ -1,40 +1,18 @@
-String responseBody = response.asPrettyString();
-int actualStatus = response.getStatusCode();
+@DataProvider(name = "apiData")
+public Object[][] apiData() {
 
-if (data.getExpectedXmlTags() != null) {
-    for (String tag : data.getExpectedXmlTags()) {
+    List<TestCaseData> data = TestDataLoader.loadTestData();
 
-        String value = XmlValidatorUtil.getValue(
-                responseBody,
-                "//*[local-name()='" + tag + "']"
-        );
+    System.out.println("Loaded test data count: " + data.size());
 
-        ExtentTestListener.getTest().info(
-                "Validating XML tag: " + tag + " -> " + value
-        );
+    Object[][] result = new Object[data.size()][1];
 
-        Assert.assertTrue(
-                value != null && !value.isEmpty(),
-                "Expected XML tag missing or empty: " + tag
-        );
+    for (int i = 0; i < data.size(); i++) {
+
+        System.out.println("Loaded test case id: " + data.get(i).getTcId());
+
+        result[i][0] = data.get(i);
     }
-}
 
-if (data.getMemberClassPlanCategoryCode() != null &&
-        !data.getMemberClassPlanCategoryCode().isBlank()) {
-
-    String actualCategoryCode = XmlValidatorUtil.getValue(
-            responseBody,
-            "//*[local-name()='MemberClassPlanCategoryCode']"
-    );
-
-    ExtentTestListener.getTest().info(
-            "Validating MemberClassPlanCategoryCode -> " + actualCategoryCode
-    );
-
-    Assert.assertEquals(
-            actualCategoryCode,
-            data.getMemberClassPlanCategoryCode(),
-            "MemberClassPlanCategoryCode mismatch"
-    );
+    return result;
 }
