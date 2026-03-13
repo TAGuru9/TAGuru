@@ -1,18 +1,17 @@
-@DataProvider(name = "apiData")
-public Object[][] apiData() {
+if (data.getMemberClassPlanId() != null && !data.getMemberClassPlanId().isBlank()) {
 
-    List<TestCaseData> data = TestDataLoader.loadTestData();
+    String actualMemberClassPlanId = XmlValidatorUtil.getValue(
+            responseBody,
+            "//*[local-name()='MemberClassPlanID']"
+    );
 
-    System.out.println("Loaded test data count: " + data.size());
+    ExtentTestListener.getTest().info(
+            "Validating MemberClassPlanID -> " + actualMemberClassPlanId
+    );
 
-    Object[][] result = new Object[data.size()][1];
-
-    for (int i = 0; i < data.size(); i++) {
-
-        System.out.println("Loaded test case id: " + data.get(i).getTcId());
-
-        result[i][0] = data.get(i);
-    }
-
-    return result;
+    Assert.assertEquals(
+            actualMemberClassPlanId,
+            data.getMemberClassPlanId(),
+            "MemberClassPlanID mismatch"
+    );
 }
