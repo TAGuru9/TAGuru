@@ -1,29 +1,217 @@
+package com.acfc.automation.runners;
 
-@DataProvider(name = "apiData")
-public Object[][] apiData() {
-    try {
-        List<TestCaseData> data = TestDataLoader.loadTestData();
+import com.acfc.automation.config.ApiConfigLoader;
+import com.acfc.automation.config.ApiRequestConfig;
+import com.acfc.automation.model.TestCaseData;
+import com.acfc.automation.reporting.ExecutionSummaryListener;
+import com.acfc.automation.reporting.ExtentManager;
+import com.acfc.automation.reporting.ExtentTestListener;
+import com.acfc.automation.reporting.ReportLogger;
+import com.acfc.automation.utils.FileUtil;
+import com.acfc.automation.utils.SoapRequestUtil;
+import com.acfc.automation.utils.StatusCodeTracker;
+import com.acfc.automation.utils.TemplateUtil;
+import com.acfc.automation.utils.TestDataLoader;
+import com.acfc.automation.utils.XmlValidatorUtil;
+import com.aventstack.extentreports.ExtentTest;
+import io.restassured.response.Response;
+import org.testng.Assert;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
-        System.out.println("Loaded test data count: " + data.size());
+import java.util.List;
 
-        for (TestCaseData tc : data) {
-            System.out.println("Loaded TC ID: " + tc.getTcId());
-            System.out.println("Loaded Test Name: " + tc.getTestName());
-            System.out.println("Loaded Type: " + tc.getType());
+@Listeners({
+        ExtentTestListener.class,
+        ExecutionSummaryListener.class
+})
+public class DynamicApiTest {
+
+    static {
+        StatusCodeTracker.init();
+    }
+
+    @DataProvider(name = "apiData")
+    public Object[][] apiData() {
+        try {
+            List<TestCaseData> data = TestDataLoader.loadTestData();
+
+            System.out.println("Loaded test data count: " + (data == null ? 0 : data.size()));
+
+            if (data != null) {
+                for (TestCaseData tc : data) {
+                    System.out.println("Loaded TC ID: " + tc.getTcId());
+                    System.out.println("Loaded Test Name: " + tc.getTestName());
+                    System.out.println("Loaded Type: " + tc.getType());
+                    System.out.println("----------------------------------------");
+                }
+            }
+
+            if (data == null || data.isEmpty()) {
+                throw new RuntimeException("No test data loaded from JSON");
+            }
+
+            Object[][] result = new Object[data.size()][1];
+
+            for (int i = 0; i < data.size(); i++) {
+                result[i][0] = data.get(i);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            System.out.println("ERROR in DataProvider apiData()");
+            e.printStackTrace();
+            throw new RuntimeException("DataProvider apiData failed", e);
+        }
+    }
+
+    @Test(dataProvider = "apiData")
+    public void runApiScenario(TestCaseData data) {
+
+        ExtentTest test = ExtentManager.getInstance()
+                .createTest(data.getTcId() + " | " + data.getTestName());
+        ExtentTestListener.setTest(test);
+        test.assignCategory(data.getType());
+
+        System.out.println("Executing TC ID: " + data.getTcId());
+        System.out.println("Executing Test Name: " + data.getTestName());
+
+        ApiConfigLoader loader = new ApiConfigLoader();
+        ApiRequestConfig config = loader.getRequestConfig(data.getRequestName());
+
+        String requestBody = null;
+
+        if (data.getBodyFile() != null && !data.getBodyFile().isBlank()) {
+            requestBody = FileUtil.readClasspathFile(data.getBodyFile());
+        } else if (config.getRequestFile() != null && !config.getRequestFile().isBlank()) {
+            String template = FileUtil.readClasspathFile(config.getRequestFile());
+            requestBody = TemplateUtil.populateTemplate(template, data);
         }
 
-        if (data == null || data.isEmpty()) {
-            throw new RuntimeException("No test data loaded from JSON");
+        if (requestBody == null || requestBody.isBlank()) {
+            throw new RuntimeException("Request body is empty for TC: " + data.getTcId());
         }
 
-        Object[][] result = new Object[data.size()][1];
-        for (int i = 0; i < data.size(); i++) {
-            result[i][0] = data.get(i);
-        }
+        Response response = null;
+        String responseBody = "";
+        int actualStatus = -1;
 
-        return result;
-    } catch (Exception e) {
-        e.printStackTrace();
-        throw new RuntimeException("DataProvider apiData failed", e);
+        try {
+            response = SoapRequestUtil.executeRequest(
+                    config.getUrl(),
+                    config.getMethod(),
+                    config.getContentType(),
+                    requestBody,
+                    config.getHeaders()
+            );
+
+            actualStatus = response.getStatusCode();
+            responseBody = response.asPrettyString();
+
+            test.info("TC ID: " + data.getTcId());
+            test.info("Test Name: " + data.getTestName());
+            test.info("Request Name: " + data.getRequestName());
+
+            ReportLogger.logRequestResponse(test, requestBody, responseBody, actualStatus);
+
+            // Old contains validation, only if provided
+            if (data.getExpectedContains() != null) {
+                for (String expected : data.getExpectedContains()) {
+                    boolean exists = responseBody.contains(expected);
+
+                    test.info("Validating contains text: " + expected + " -> " + exists);
+
+                    Assert.assertTrue(
+                            exists,
+                            "Expected text not found in response: " + expected
+                    );
+                }
+            }
+
+            // XML tag existence validation
+            if (data.getExpectedXmlTags() != null) {
+                for (String tag : data.getExpectedXmlTags()) {
+
+                    String value = XmlValidatorUtil.getValue(
+                            responseBody,
+                            "//*[local-name()='" + tag + "']"
+                    );
+
+                    test.info("Validating XML tag: " + tag + " -> " + value);
+
+                    Assert.assertTrue(
+                            value != null && !value.isEmpty(),
+                            "Expected XML tag missing or empty: " + tag
+                    );
+                }
+            }
+
+            // Validate MemberClassPlanID if provided in JSON
+            if (data.getMemberClassPlanID() != null && !data.getMemberClassPlanID().isBlank()) {
+
+                String actualMemberClassPlanId = XmlValidatorUtil.getValue(
+                        responseBody,
+                        "//*[local-name()='MemberClassPlanID']"
+                );
+
+                test.info("Validating MemberClassPlanID -> " + actualMemberClassPlanId);
+
+                Assert.assertEquals(
+                        actualMemberClassPlanId,
+                        data.getMemberClassPlanID(),
+                        "MemberClassPlanID mismatch"
+                );
+            }
+
+            // Validate MemberClassPlanCategoryCode if provided in JSON
+            if (data.getMemberClassPlanCategoryCode() != null
+                    && !data.getMemberClassPlanCategoryCode().isBlank()) {
+
+                String actualCategoryCode = XmlValidatorUtil.getValue(
+                        responseBody,
+                        "//*[local-name()='MemberClassPlanCategoryCode']"
+                );
+
+                test.info("Validating MemberClassPlanCategoryCode -> " + actualCategoryCode);
+
+                Assert.assertEquals(
+                        actualCategoryCode,
+                        data.getMemberClassPlanCategoryCode(),
+                        "MemberClassPlanCategoryCode mismatch"
+                );
+            }
+
+            Assert.assertEquals(
+                    actualStatus,
+                    data.getExpectedStatus(),
+                    "Status code mismatch for TC: " + data.getTcId()
+            );
+
+            StatusCodeTracker.log(
+                    data.getTcId(),
+                    data.getTestName(),
+                    data.getType(),
+                    actualStatus,
+                    "PASS"
+            );
+
+        } catch (AssertionError | Exception e) {
+
+            StatusCodeTracker.log(
+                    data.getTcId(),
+                    data.getTestName(),
+                    data.getType(),
+                    actualStatus,
+                    "FAIL"
+            );
+
+            if (test != null) {
+                test.fail(e);
+            }
+
+            throw e;
+        }
     }
 }
