@@ -1,56 +1,29 @@
-task runAllSmoke {
-    group = "verification"
-    description = "Run smoke tests for member and cdr sequentially"
+================ TEST EXECUTION SUMMARY =================
 
-    doLast {
-        String envName = System.getProperty("env", "qa")
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win")
-        String gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
+Project        : member
+Environment    : qa
+Execution Type : smoke
+TC Filter      : ALL
 
-        def projects = ["member", "cdr"]
+--------------------------------------------------------
+Total Tests    : 3
+PASSED         : 2
+FAILED         : 1
+SKIPPED        : 0
+--------------------------------------------------------
 
-        projects.each { projectName ->
-            List<String> cmd
+OVERALL STATUS
+--------------------------------------------------------
+TC ID: TC-SOAP-0540-0001 | Test Name: Member eligibility soap smoke_0540 | Status: PASS
+TC ID: TC-SOAP-0530-0002 | Test Name: Member eligibility soap smoke_0530 | Status: FAIL
+TC ID: TC-SOAP-0100-0003 | Test Name: Member eligibility soap smoke_0100 | Status: PASS
+--------------------------------------------------------
 
-            if (isWindows) {
-                cmd = [
-                        "cmd",
-                        "/c",
-                        gradleCmd,
-                        "runApiTests",
-                        "-Dproject=${projectName}".toString(),
-                        "-Denv=${envName}".toString(),
-                        "-Dtype=smoke",
-                        "--rerun-tasks",
-                        "--info"
-                ]
-            } else {
-                cmd = [
-                        "bash",
-                        "-c",
-                        "${gradleCmd} runApiTests -Dproject=${projectName} -Denv=${envName} -Dtype=smoke --rerun-tasks --info".toString()
-                ]
-            }
+REPORTS
+--------------------------------------------------------
+Extent Report  : build/reports/extent/member-qa-smoke-extent-report.html
+Gradle Report  : build/reports/tests/test/index.html
+Status Tracker : build/reports/status-tracker/status-codes.csv
+--------------------------------------------------------
 
-            println "=================================================="
-            println "Starting smoke tests for project: ${projectName}"
-            println "Environment: ${envName}"
-            println "=================================================="
-
-            Process process = new ProcessBuilder(cmd)
-                    .redirectErrorStream(true)
-                    .inheritIO()
-                    .start()
-
-            int exitCode = process.waitFor()
-
-            println "Project ${projectName} finished with exit code: ${exitCode}"
-
-            if (exitCode != 0) {
-                throw new GradleException("Smoke execution failed for project: ${projectName}")
-            }
-        }
-
-        println "All smoke executions completed successfully."
-    }
-}
+========================================================
