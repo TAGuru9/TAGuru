@@ -1,15 +1,17 @@
-task runAllSmokeParallel {
+task runAllSmoke {
     group = "verification"
-    description = "Run smoke tests for member and cdr projects in parallel"
+    description = "Run smoke tests for member and cdr sequentially"
 
     doLast {
         String envName = System.getProperty("env", "qa")
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win")
         String gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
 
-        def buildCommand = { String projectName ->
+        ["member", "cdr"].each { projectName ->
+
+            List<String> cmd
             if (isWindows) {
-                return [
+                cmd = [
                         "cmd".toString(),
                         "/c".toString(),
                         gradleCmd.toString(),
@@ -21,39 +23,24 @@ task runAllSmokeParallel {
                         "--info".toString()
                 ]
             } else {
-                return [
+                cmd = [
                         "bash".toString(),
                         "-c".toString(),
                         "${gradleCmd} runApiTests -Dproject=${projectName} -Denv=${envName} -Dtype=smoke --rerun-tasks --info".toString()
                 ]
             }
+
+            println "Starting ${projectName.toUpperCase()}..."
+
+            Process process = new ProcessBuilder(cmd)
+                    .redirectErrorStream(true)
+                    .inheritIO()
+                    .start()
+
+            int exitCode = process.waitFor()
+            println "${projectName.toUpperCase()} finished with exit code: ${exitCode}"
         }
 
-        def runProcess = { String label, List<String> cmd ->
-            Thread.start {
-                try {
-                    println "Starting ${label}: ${cmd.join(' ')}"
-
-                    Process process = new ProcessBuilder(cmd)
-                            .redirectErrorStream(true)
-                            .inheritIO()
-                            .start()
-
-                    int exitCode = process.waitFor()
-                    println "${label} finished with exit code: ${exitCode}"
-                } catch (Exception e) {
-                    println "${label} failed: ${e.message}"
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        Thread t1 = runProcess("MEMBER", buildCommand("member"))
-        Thread t2 = runProcess("CDR", buildCommand("cdr"))
-
-        t1.join()
-        t2.join()
-
-        println "Both smoke executions completed."
+        println "All smoke executions completed."
     }
 }
