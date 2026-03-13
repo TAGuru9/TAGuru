@@ -1,31 +1,14 @@
-package com.acfc.automation.utils;
+String classPlanId = XmlValidatorUtil.getValue(
+        responseBody,
+        "//memberClassPlanId"
+);
 
-import org.w3c.dom.Document;
-import org.xml.sax.InputSource;
+ExtentTestListener.getTest().info(
+        "Validating memberClassPlanId -> " + classPlanId
+);
 
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathFactory;
-import java.io.StringReader;
-
-public class XmlValidatorUtil {
-
-    public static String getValue(String xml, String xpathExpression) {
-
-        try {
-
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-
-            Document doc = factory.newDocumentBuilder()
-                    .parse(new InputSource(new StringReader(xml)));
-
-            XPath xpath = XPathFactory.newInstance().newXPath();
-
-            return xpath.evaluate(xpathExpression, doc);
-
-        } catch (Exception e) {
-            throw new RuntimeException("XPath evaluation failed: " + xpathExpression, e);
-        }
-    }
-}
+Assert.assertEquals(
+        classPlanId,
+        data.getMemberClassPlanId(),
+        "memberClassPlanId mismatch"
+);
