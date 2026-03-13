@@ -1,13 +1,18 @@
-String classPlanId = XmlValidatorUtil.getValue(
-        responseBody,
-        "//memberClassPlanId"
-);
+if (data.getMemberClassPlanCategoryCode() != null &&
+        !data.getMemberClassPlanCategoryCode().isBlank()) {
 
-ExtentTestListener.getTest().info(
-        "Validating memberClassPlanId -> " + classPlanId
-);
+    String actualCategoryCode = XmlValidatorUtil.getValue(
+            responseBody,
+            "//*[local-name()='MemberClassPlanCategoryCode']"
+    );
 
-Assert.assertEquals(
-        classPlanId,
-        data.getMemberClassPlanId(),
-        "memberClassPlanId mismatch"
+    ExtentTestListener.getTest().info(
+            "Validating MemberClassPlanCategoryCode -> " + actualCategoryCode
+    );
+
+    Assert.assertEquals(
+            actualCategoryCode,
+            data.getMemberClassPlanCategoryCode(),
+            "MemberClassPlanCategoryCode mismatch"
+    );
+}
