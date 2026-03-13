@@ -1,29 +1,122 @@
-================ TEST EXECUTION SUMMARY =================
+package com.acfc.automation.reporting;
 
-Project        : member
-Environment    : qa
-Execution Type : smoke
-TC Filter      : ALL
+import com.acfc.automation.config.ConfigManager;
+import org.testng.ISuite;
+import org.testng.ISuiteListener;
+import org.testng.ITestContext;
+import org.testng.ITestResult;
 
---------------------------------------------------------
-Total Tests    : 3
-PASSED         : 2
-FAILED         : 1
-SKIPPED        : 0
---------------------------------------------------------
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
-OVERALL STATUS
---------------------------------------------------------
-TC ID: TC-SOAP-0540-0001 | Test Name: Member eligibility soap smoke_0540 | Status: PASS
-TC ID: TC-SOAP-0530-0002 | Test Name: Member eligibility soap smoke_0530 | Status: FAIL
-TC ID: TC-SOAP-0100-0003 | Test Name: Member eligibility soap smoke_0100 | Status: PASS
---------------------------------------------------------
+public class ExecutionSummaryListener implements ISuiteListener {
 
-REPORTS
---------------------------------------------------------
-Extent Report  : build/reports/extent/member-qa-smoke-extent-report.html
-Gradle Report  : build/reports/tests/test/index.html
-Status Tracker : build/reports/status-tracker/status-codes.csv
---------------------------------------------------------
+    @Override
+    public void onStart(ISuite suite) {
+        // no-op
+    }
 
-========================================================
+    @Override
+    public void onFinish(ISuite suite) {
+
+        int totalPassed = 0;
+        int totalFailed = 0;
+        int totalSkipped = 0;
+
+        List<String> overallStatuses = new ArrayList<>();
+
+        for (ITestContext context : suite.getResults().values()
+                .stream()
+                .map(r -> r.getTestContext())
+                .toList()) {
+
+            totalPassed += context.getPassedTests().size();
+            totalFailed += context.getFailedTests().size();
+            totalSkipped += context.getSkippedTests().size();
+
+            collectStatuses(context.getPassedTests().getAllResults(), "PASS", overallStatuses);
+            collectStatuses(context.getFailedTests().getAllResults(), "FAIL", overallStatuses);
+            collectStatuses(context.getSkippedTests().getAllResults(), "SKIP", overallStatuses);
+        }
+
+        int totalTests = totalPassed + totalFailed + totalSkipped;
+
+        String project = ConfigManager.getProject();
+        String env = ConfigManager.getEnv();
+        String type = ConfigManager.getType();
+        String tcId = ConfigManager.getTcId().isBlank() ? "ALL" : ConfigManager.getTcId();
+
+        String extentReportPath = "build/reports/extent/" + project + "-" + env + "-" + type + "-extent-report.html";
+        String gradleReportPath = "build/reports/tests/test/index.html";
+        String statusTrackerPath = "build/reports/status-tracker/status-codes.csv";
+
+        System.out.println();
+        System.out.println("================ TEST EXECUTION SUMMARY =================");
+        System.out.println();
+        System.out.println("Project        : " + project);
+        System.out.println("Environment    : " + env);
+        System.out.println("Execution Type : " + type);
+        System.out.println("TC Filter      : " + tcId);
+        System.out.println();
+        System.out.println("--------------------------------------------------------");
+        System.out.println("Total Tests    : " + totalTests);
+        System.out.println("PASSED         : " + totalPassed);
+        System.out.println("FAILED         : " + totalFailed);
+        System.out.println("SKIPPED        : " + totalSkipped);
+        System.out.println("--------------------------------------------------------");
+        System.out.println();
+
+        System.out.println("OVERALL STATUS");
+        System.out.println("--------------------------------------------------------");
+        for (String row : overallStatuses) {
+            System.out.println(row);
+        }
+        System.out.println("--------------------------------------------------------");
+        System.out.println();
+
+        System.out.println("REPORTS");
+        System.out.println("--------------------------------------------------------");
+        System.out.println("Extent Report  : " + extentReportPath);
+        System.out.println("Gradle Report  : " + gradleReportPath);
+        System.out.println("Status Tracker : " + statusTrackerPath);
+        System.out.println("--------------------------------------------------------");
+        System.out.println();
+        System.out.println("========================================================");
+        System.out.println();
+    }
+
+    private void collectStatuses(Set<ITestResult> results, String status, List<String> overallStatuses) {
+        for (ITestResult result : results) {
+            Object[] params = result.getParameters();
+
+            String tcId = "UNKNOWN_TC";
+            String testName = result.getName();
+
+            if (params != null && params.length > 0 && params[0] != null) {
+                try {
+                    Object data = params[0];
+
+                    String extractedTcId = (String) data.getClass().getMethod("getTcId").invoke(data);
+                    String extractedTestName = (String) data.getClass().getMethod("getTestName").invoke(data);
+
+                    if (extractedTcId != null && !extractedTcId.isBlank()) {
+                        tcId = extractedTcId;
+                    }
+                    if (extractedTestName != null && !extractedTestName.isBlank()) {
+                        testName = extractedTestName;
+                    }
+
+                } catch (Exception e) {
+                    // fallback to TestNG method name
+                }
+            }
+
+            overallStatuses.add(
+                    "TC ID: " + tcId +
+                    " | Test Name: " + testName +
+                    " | Status: " + status
+            );
+        }
+    }
+}
