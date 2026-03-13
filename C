@@ -1,15 +1,31 @@
-if (data.getExpectedContains() != null) {
+package com.acfc.automation.utils;
 
-    for (String tag : data.getExpectedContains()) {
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
-        boolean exists = responseBody.contains(tag);
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
+import java.io.StringReader;
 
-        ExtentTestListener.getTest().info(
-                "Validating tag: " + tag + " -> " + exists);
+public class XmlValidatorUtil {
 
-        Assert.assertTrue(
-                exists,
-                "Expected tag not found in response: " + tag
-        );
+    public static String getValue(String xml, String xpathExpression) {
+
+        try {
+
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+
+            Document doc = factory.newDocumentBuilder()
+                    .parse(new InputSource(new StringReader(xml)));
+
+            XPath xpath = XPathFactory.newInstance().newXPath();
+
+            return xpath.evaluate(xpathExpression, doc);
+
+        } catch (Exception e) {
+            throw new RuntimeException("XPath evaluation failed: " + xpathExpression, e);
+        }
     }
 }
