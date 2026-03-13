@@ -11,4 +11,3 @@ Assert.assertEquals(
         classPlanId,
         data.getMemberClassPlanId(),
         "memberClassPlanId mismatch"
-);
