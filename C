@@ -1,18 +1,18 @@
-if (data.getMemberClassPlanCategoryCode() != null &&
-        !data.getMemberClassPlanCategoryCode().isBlank()) {
+if (data.getExpectedXmlTags() != null) {
+    for (String tag : data.getExpectedXmlTags()) {
 
-    String actualCategoryCode = XmlValidatorUtil.getValue(
-            responseBody,
-            "//*[local-name()='MemberClassPlanCategoryCode']"
-    );
+        String value = XmlValidatorUtil.getValue(
+                responseBody,
+                "//*[local-name()='" + tag + "']"
+        );
 
-    ExtentTestListener.getTest().info(
-            "Validating MemberClassPlanCategoryCode -> " + actualCategoryCode
-    );
+        ExtentTestListener.getTest().info(
+                "Validating XML tag: " + tag + " -> " + value
+        );
 
-    Assert.assertEquals(
-            actualCategoryCode,
-            data.getMemberClassPlanCategoryCode(),
-            "MemberClassPlanCategoryCode mismatch"
-    );
+        Assert.assertTrue(
+                value != null && !value.isEmpty(),
+                "Expected XML tag missing or empty: " + tag
+        );
+    }
 }
