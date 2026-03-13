@@ -3,22 +3,36 @@ task runAllSmokeParallel {
     description = "Run smoke tests for member and cdr projects in parallel"
 
     doLast {
-
         def envName = System.getProperty("env", "qa")
+        def isWindows = System.getProperty("os.name").toLowerCase().contains("win")
+        def gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
 
-        println "Running smoke tests in environment: ${envName}"
+        def memberCmd = isWindows
+                ? ["cmd", "/c", gradleCmd, "runApiTests", "-Dproject=member", "-Denv=${envName}", "-Dtype=smoke", "--rerun-tasks", "--info"]
+                : ["bash", "-c", "${gradleCmd} runApiTests -Dproject=member -Denv=${envName} -Dtype=smoke --rerun-tasks --info"]
 
-        def memberProcess = ["cmd","/c","gradlew.bat","runApiTests",
-                             "-Dproject=member",
-                             "-Denv=${envName}",
-                             "-Dtype=smoke"].execute()
+        def cdrCmd = isWindows
+                ? ["cmd", "/c", gradleCmd, "runApiTests", "-Dproject=cdr", "-Denv=${envName}", "-Dtype=smoke", "--rerun-tasks", "--info"]
+                : ["bash", "-c", "${gradleCmd} runApiTests -Dproject=cdr -Denv=${envName} -Dtype=smoke --rerun-tasks --info"]
 
-        def cdrProcess = ["cmd","/c","gradlew.bat","runApiTests",
-                          "-Dproject=cdr",
-                          "-Denv=${envName}",
-                          "-Dtype=smoke"].execute()
+        def runProcess = { String label, List cmd ->
+            Thread.start {
+                println "Starting ${label}: ${cmd.join(' ')}"
+                def process = new ProcessBuilder(cmd)
+                        .redirectErrorStream(true)
+                        .inheritIO()
+                        .start()
+                int exitCode = process.waitFor()
+                println "${label} finished with exit code: ${exitCode}"
+            }
+        }
 
-        memberProcess.waitFor()
-        cdrProcess.waitFor()
+        def t1 = runProcess("MEMBER", memberCmd)
+        def t2 = runProcess("CDR", cdrCmd)
+
+        t1.join()
+        t2.join()
+
+        println "Both smoke executions completed."
     }
 }
