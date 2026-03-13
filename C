@@ -7,30 +7,35 @@ task runAllSmoke {
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win")
         String gradleCmd = isWindows ? "gradlew.bat" : "./gradlew"
 
-        ["member", "cdr"].each { projectName ->
+        def projects = ["member", "cdr"]
 
+        projects.each { projectName ->
             List<String> cmd
+
             if (isWindows) {
                 cmd = [
-                        "cmd".toString(),
-                        "/c".toString(),
-                        gradleCmd.toString(),
-                        "runApiTests".toString(),
+                        "cmd",
+                        "/c",
+                        gradleCmd,
+                        "runApiTests",
                         "-Dproject=${projectName}".toString(),
                         "-Denv=${envName}".toString(),
-                        "-Dtype=smoke".toString(),
-                        "--rerun-tasks".toString(),
-                        "--info".toString()
+                        "-Dtype=smoke",
+                        "--rerun-tasks",
+                        "--info"
                 ]
             } else {
                 cmd = [
-                        "bash".toString(),
-                        "-c".toString(),
+                        "bash",
+                        "-c",
                         "${gradleCmd} runApiTests -Dproject=${projectName} -Denv=${envName} -Dtype=smoke --rerun-tasks --info".toString()
                 ]
             }
 
-            println "Starting ${projectName.toUpperCase()}..."
+            println "=================================================="
+            println "Starting smoke tests for project: ${projectName}"
+            println "Environment: ${envName}"
+            println "=================================================="
 
             Process process = new ProcessBuilder(cmd)
                     .redirectErrorStream(true)
@@ -38,9 +43,14 @@ task runAllSmoke {
                     .start()
 
             int exitCode = process.waitFor()
-            println "${projectName.toUpperCase()} finished with exit code: ${exitCode}"
+
+            println "Project ${projectName} finished with exit code: ${exitCode}"
+
+            if (exitCode != 0) {
+                throw new GradleException("Smoke execution failed for project: ${projectName}")
+            }
         }
 
-        println "All smoke executions completed."
+        println "All smoke executions completed successfully."
     }
 }
