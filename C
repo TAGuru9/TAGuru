@@ -1,122 +1,38 @@
-package com.acfc.automation.reporting;
+package com.acfc.automation.utils;
 
-import com.acfc.automation.config.ConfigManager;
-import org.testng.ISuite;
-import org.testng.ISuiteListener;
-import org.testng.ITestContext;
-import org.testng.ITestResult;
+import com.acfc.automation.model.TestCaseData;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.lang.reflect.Field;
 
-public class ExecutionSummaryListener implements ISuiteListener {
+public class TemplateUtil {
 
-    @Override
-    public void onStart(ISuite suite) {
-        // no-op
-    }
-
-    @Override
-    public void onFinish(ISuite suite) {
-
-        int totalPassed = 0;
-        int totalFailed = 0;
-        int totalSkipped = 0;
-
-        List<String> overallStatuses = new ArrayList<>();
-
-        for (ITestContext context : suite.getResults().values()
-                .stream()
-                .map(r -> r.getTestContext())
-                .toList()) {
-
-            totalPassed += context.getPassedTests().size();
-            totalFailed += context.getFailedTests().size();
-            totalSkipped += context.getSkippedTests().size();
-
-            collectStatuses(context.getPassedTests().getAllResults(), "PASS", overallStatuses);
-            collectStatuses(context.getFailedTests().getAllResults(), "FAIL", overallStatuses);
-            collectStatuses(context.getSkippedTests().getAllResults(), "SKIP", overallStatuses);
+    public static String populateTemplate(String template, TestCaseData data) {
+        if (template == null || data == null) {
+            return template;
         }
 
-        int totalTests = totalPassed + totalFailed + totalSkipped;
+        Field[] fields = data.getClass().getDeclaredFields();
 
-        String project = ConfigManager.getProject();
-        String env = ConfigManager.getEnv();
-        String type = ConfigManager.getType();
-        String tcId = ConfigManager.getTcId().isBlank() ? "ALL" : ConfigManager.getTcId();
+        for (Field field : fields) {
+            field.setAccessible(true);
 
-        String extentReportPath = "build/reports/extent/" + project + "-" + env + "-" + type + "-extent-report.html";
-        String gradleReportPath = "build/reports/tests/test/index.html";
-        String statusTrackerPath = "build/reports/status-tracker/status-codes.csv";
+            try {
+                Object valueObj = field.get(data);
+                String fieldName = field.getName();
+                String placeholder = "{{" + fieldName + "}}";
+                String value = valueObj == null ? "" : valueObj.toString();
 
-        System.out.println();
-        System.out.println("================ TEST EXECUTION SUMMARY =================");
-        System.out.println();
-        System.out.println("Project        : " + project);
-        System.out.println("Environment    : " + env);
-        System.out.println("Execution Type : " + type);
-        System.out.println("TC Filter      : " + tcId);
-        System.out.println();
-        System.out.println("--------------------------------------------------------");
-        System.out.println("Total Tests    : " + totalTests);
-        System.out.println("PASSED         : " + totalPassed);
-        System.out.println("FAILED         : " + totalFailed);
-        System.out.println("SKIPPED        : " + totalSkipped);
-        System.out.println("--------------------------------------------------------");
-        System.out.println();
+                template = template.replace(placeholder, value);
 
-        System.out.println("OVERALL STATUS");
-        System.out.println("--------------------------------------------------------");
-        for (String row : overallStatuses) {
-            System.out.println(row);
-        }
-        System.out.println("--------------------------------------------------------");
-        System.out.println();
-
-        System.out.println("REPORTS");
-        System.out.println("--------------------------------------------------------");
-        System.out.println("Extent Report  : " + extentReportPath);
-        System.out.println("Gradle Report  : " + gradleReportPath);
-        System.out.println("Status Tracker : " + statusTrackerPath);
-        System.out.println("--------------------------------------------------------");
-        System.out.println();
-        System.out.println("========================================================");
-        System.out.println();
-    }
-
-    private void collectStatuses(Set<ITestResult> results, String status, List<String> overallStatuses) {
-        for (ITestResult result : results) {
-            Object[] params = result.getParameters();
-
-            String tcId = "UNKNOWN_TC";
-            String testName = result.getName();
-
-            if (params != null && params.length > 0 && params[0] != null) {
-                try {
-                    Object data = params[0];
-
-                    String extractedTcId = (String) data.getClass().getMethod("getTcId").invoke(data);
-                    String extractedTestName = (String) data.getClass().getMethod("getTestName").invoke(data);
-
-                    if (extractedTcId != null && !extractedTcId.isBlank()) {
-                        tcId = extractedTcId;
-                    }
-                    if (extractedTestName != null && !extractedTestName.isBlank()) {
-                        testName = extractedTestName;
-                    }
-
-                } catch (Exception e) {
-                    // fallback to TestNG method name
-                }
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException("Unable to read field for template replacement: " + field.getName(), e);
             }
-
-            overallStatuses.add(
-                    "TC ID: " + tcId +
-                    " | Test Name: " + testName +
-                    " | Status: " + status
-            );
         }
+
+        return removeUnresolvedPlaceholders(template);
+    }
+
+    private static String removeUnresolvedPlaceholders(String template) {
+        return template.replaceAll("\\{\\{[^}]+}}", "");
     }
 }
