@@ -1,0 +1,16 @@
+String requestBody = null;
+
+if (data.getBodyFile() != null && !data.getBodyFile().isBlank()) {
+    requestBody = FileUtil.readClasspathFile(data.getBodyFile());
+} else if (config.getRequestFile() != null && !config.getRequestFile().isBlank()) {
+    String template = FileUtil.readClasspathFile(config.getRequestFile());
+    requestBody = TemplateUtil.populateTemplate(template, data);
+}
+
+// Only require body for POST/PUT/PATCH
+String method = config.getMethod() != null ? config.getMethod().toUpperCase() : "";
+
+if ((method.equals("POST") || method.equals("PUT") || method.equals("PATCH"))
+        && (requestBody == null || requestBody.isBlank())) {
+    throw new RuntimeException("Request body is empty for TC: " + data.getTcId());
+}
